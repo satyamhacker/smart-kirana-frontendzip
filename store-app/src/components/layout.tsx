@@ -1,4 +1,6 @@
-import { Link, useLocation } from "wouter";
+"use client";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -90,13 +92,13 @@ function NavItem({
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {
-  const [location] = useLocation();
+  const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const isActive = (href: string) =>
     href === "/dashboard"
-      ? location === "/dashboard" || location === "/"
-      : location.startsWith(href);
+      ? pathname === "/dashboard" || pathname === "/"
+      : pathname.startsWith(href);
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
