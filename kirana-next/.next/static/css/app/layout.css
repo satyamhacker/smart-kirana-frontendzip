@@ -588,9 +588,6 @@
   .h-\[calc\(100dvh-2\*1\.5rem\)\] {
     height: calc(100dvh - 2 * 1.5rem);
   }
-  .h-\[calc\(100dvh-3\.5rem-2rem\)\] {
-    height: calc(100dvh - 3.5rem - 2rem);
-  }
   .h-\[calc\(100dvh-3\.5rem-4rem\)\] {
     height: calc(100dvh - 3.5rem - 4rem);
   }
@@ -859,16 +856,8 @@
     --tw-translate-x: calc(calc(1 / 2 * 100%) * -1);
     translate: var(--tw-translate-x) var(--tw-translate-y);
   }
-  .-translate-x-full {
-    --tw-translate-x: -100%;
-    translate: var(--tw-translate-x) var(--tw-translate-y);
-  }
   .-translate-x-px {
     --tw-translate-x: -1px;
-    translate: var(--tw-translate-x) var(--tw-translate-y);
-  }
-  .translate-x-0 {
-    --tw-translate-x: calc(var(--spacing) * 0);
     translate: var(--tw-translate-x) var(--tw-translate-y);
   }
   .translate-x-\[-50\%\] {
@@ -3629,16 +3618,6 @@
       display: none;
     }
   }
-  .md\:h-\[calc\(100dvh-2\*1\.5rem\)\] {
-    @media (width >= 48rem) {
-      height: calc(100dvh - 2 * 1.5rem);
-    }
-  }
-  .md\:w-80 {
-    @media (width >= 48rem) {
-      width: calc(var(--spacing) * 80);
-    }
-  }
   .md\:w-\[var\(--radix-navigation-menu-viewport-width\)\] {
     @media (width >= 48rem) {
       width: var(--radix-navigation-menu-viewport-width);
@@ -3662,11 +3641,6 @@
   .md\:flex-row {
     @media (width >= 48rem) {
       flex-direction: row;
-    }
-  }
-  .md\:gap-5 {
-    @media (width >= 48rem) {
-      gap: calc(var(--spacing) * 5);
     }
   }
   .md\:p-6 {
