@@ -47,6 +47,12 @@ export default defineConfig({
     fs: {
       strict: true,
     },
+    proxy: {
+      "/api": {
+        target: "http://localhost:5001",
+        changeOrigin: true,
+      },
+    },
   },
   preview: {
     port,
