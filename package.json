@@ -1,0 +1,10 @@
+{
+  "name": "workspace",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "store-app",
+    "api-client-react"
+  ],
+  "packageManager": "pnpm@9.0.0"
+}
