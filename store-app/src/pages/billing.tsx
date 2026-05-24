@@ -1,19 +1,34 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import {
   useListProducts,
   useListCustomers,
   useCreateBill,
+  useCreateCustomer,
   getListBillsQueryKey,
   getGetDashboardSummaryQueryKey,
   getListProductsQueryKey,
+  getListCustomersQueryKey,
   BillInputPaymentMode,
+  Customer,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Search, ShoppingCart, Trash2, Plus, Minus, CheckCircle2 } from "lucide-react";
+import {
+  Search,
+  ShoppingCart,
+  Trash2,
+  Plus,
+  Minus,
+  CheckCircle2,
+  UserSearch,
+  UserPlus,
+  X,
+  ChevronDown,
+  User,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -25,6 +40,265 @@ type CartItem = {
   unitPrice: number;
   quantity: number;
 };
+
+// ─── Searchable Customer Picker ──────────────────────────────────────────────
+
+type CustomerPickerProps = {
+  customers: Customer[];
+  value: string;
+  onChange: (id: string) => void;
+  required?: boolean;
+};
+
+function CustomerPicker({ customers, value, onChange, required }: CustomerPickerProps) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [showAdd, setShowAdd] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newPhone, setNewPhone] = useState("");
+  const [newAddress, setNewAddress] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  const queryClient = useQueryClient();
+  const createCustomer = useCreateCustomer();
+  const { toast } = useToast();
+
+  const selected = customers.find((c) => c.id.toString() === value);
+
+  const filtered = useMemo(() => {
+    if (!search) return customers;
+    const s = search.toLowerCase();
+    return customers.filter(
+      (c) => c.name.toLowerCase().includes(s) || c.phone.includes(s)
+    );
+  }, [customers, search]);
+
+  function openPicker() {
+    setOpen(true);
+    setSearch("");
+    setShowAdd(false);
+    setTimeout(() => searchRef.current?.focus(), 50);
+  }
+
+  function selectCustomer(c: Customer) {
+    onChange(c.id.toString());
+    setOpen(false);
+    setSearch("");
+    setShowAdd(false);
+  }
+
+  function clearSelection(e: React.MouseEvent) {
+    e.stopPropagation();
+    onChange("");
+  }
+
+  function handleAddCustomer() {
+    if (!newName.trim() || !newPhone.trim()) {
+      toast({ title: "Naam aur phone number zaroori hai", variant: "destructive" });
+      return;
+    }
+    createCustomer.mutate(
+      { data: { name: newName.trim(), phone: newPhone.trim(), address: newAddress.trim() || undefined } },
+      {
+        onSuccess: (customer) => {
+          queryClient.invalidateQueries({ queryKey: getListCustomersQueryKey() });
+          onChange(customer.id.toString());
+          setOpen(false);
+          setShowAdd(false);
+          setNewName("");
+          setNewPhone("");
+          setNewAddress("");
+          toast({ title: `${customer.name} add ho gaye!` });
+        },
+        onError: () => toast({ title: "Customer add nahi hua", variant: "destructive" }),
+      }
+    );
+  }
+
+  return (
+    <div className="relative w-full">
+      {/* Trigger */}
+      <button
+        type="button"
+        onClick={openPicker}
+        className={cn(
+          "w-full flex items-center gap-2 rounded-md border px-3 h-10 text-sm transition-colors hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-ring",
+          required && !value ? "border-warning bg-amber-50" : "bg-background",
+          open && "ring-2 ring-ring"
+        )}
+        data-testid="button-customer-picker"
+      >
+        <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <span className={cn("flex-1 text-left truncate", !selected && "text-muted-foreground")}>
+          {selected
+            ? `${selected.name}${selected.totalDue > 0 ? ` · Due: ₹${selected.totalDue.toFixed(0)}` : ""}`
+            : required
+            ? "Customer select karein (zaroori)"
+            : "Customer (optional)"}
+        </span>
+        {selected ? (
+          <X
+            className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive shrink-0"
+            onClick={clearSelection}
+          />
+        ) : (
+          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        )}
+      </button>
+
+      {/* Dropdown */}
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute bottom-full mb-1 left-0 right-0 z-50 rounded-lg border bg-white shadow-xl overflow-hidden">
+            {!showAdd ? (
+              <>
+                {/* Search bar */}
+                <div className="flex items-center gap-2 border-b px-3 py-2">
+                  <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  <input
+                    ref={searchRef}
+                    type="text"
+                    placeholder="Naam ya phone se dhundein..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="flex-1 text-sm bg-transparent outline-none placeholder:text-muted-foreground"
+                    data-testid="input-customer-search"
+                  />
+                  {search && (
+                    <button onClick={() => setSearch("")}>
+                      <X className="h-3 w-3 text-muted-foreground" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Customer list */}
+                <div className="max-h-44 overflow-auto">
+                  {filtered.length === 0 ? (
+                    <div className="py-4 text-center text-xs text-muted-foreground">
+                      "{search}" naam ka koi customer nahi mila
+                    </div>
+                  ) : (
+                    filtered.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => selectCustomer(c)}
+                        className={cn(
+                          "w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-muted/50 transition-colors",
+                          value === c.id.toString() && "bg-teal-50"
+                        )}
+                        data-testid={`option-customer-${c.id}`}
+                      >
+                        <div className="h-7 w-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold shrink-0">
+                          {c.name[0].toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{c.name}</p>
+                          <p className="text-[11px] text-muted-foreground">{c.phone}</p>
+                        </div>
+                        {c.totalDue > 0 && (
+                          <span className="text-[11px] font-semibold text-warning shrink-0">
+                            Due ₹{c.totalDue.toFixed(0)}
+                          </span>
+                        )}
+                      </button>
+                    ))
+                  )}
+                </div>
+
+                {/* Add new customer button */}
+                <div className="border-t p-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAdd(true);
+                      setNewName(search);
+                    }}
+                    className="w-full flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-primary hover:bg-teal-50 transition-colors"
+                    data-testid="button-add-new-customer"
+                  >
+                    <UserPlus className="h-4 w-4" />
+                    + Naya Customer Add Karein
+                    {search && (
+                      <span className="text-muted-foreground font-normal truncate">
+                        "{search}"
+                      </span>
+                    )}
+                  </button>
+                </div>
+              </>
+            ) : (
+              /* Add customer form */
+              <div className="p-4 space-y-3">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="font-semibold text-sm flex items-center gap-2">
+                    <UserPlus className="h-4 w-4 text-primary" />
+                    Naya Customer
+                  </p>
+                  <button
+                    onClick={() => setShowAdd(false)}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  <Input
+                    placeholder="Naam *"
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    className="h-9 text-sm"
+                    autoFocus
+                    data-testid="input-new-customer-name"
+                  />
+                  <Input
+                    placeholder="Phone Number *"
+                    value={newPhone}
+                    onChange={(e) => setNewPhone(e.target.value)}
+                    className="h-9 text-sm"
+                    type="tel"
+                    data-testid="input-new-customer-phone"
+                  />
+                  <Input
+                    placeholder="Address (optional)"
+                    value={newAddress}
+                    onChange={(e) => setNewAddress(e.target.value)}
+                    className="h-9 text-sm"
+                    data-testid="input-new-customer-address"
+                  />
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1 h-9 text-xs"
+                    onClick={() => setShowAdd(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="flex-1 h-9 text-xs"
+                    onClick={handleAddCustomer}
+                    disabled={createCustomer.isPending}
+                    data-testid="button-save-new-customer"
+                  >
+                    {createCustomer.isPending ? "Saving..." : "Save Karein"}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── Billing Page ─────────────────────────────────────────────────────────────
 
 export default function Billing() {
   const { data: products = [], isLoading } = useListProducts();
@@ -60,19 +334,12 @@ export default function Billing() {
       const existing = prev.find((item) => item.productId === product.id);
       if (existing) {
         return prev.map((item) =>
-          item.productId === product.id
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
+          item.productId === product.id ? { ...item, quantity: item.quantity + 1 } : item
         );
       }
       return [
         ...prev,
-        {
-          productId: product.id,
-          productName: product.name,
-          unitPrice: product.sellingPrice,
-          quantity: 1,
-        },
+        { productId: product.id, productName: product.name, unitPrice: product.sellingPrice, quantity: 1 },
       ];
     });
     setSearch("");
@@ -80,12 +347,7 @@ export default function Billing() {
 
   const updateQty = (productId: number, delta: number) => {
     setCart((prev) =>
-      prev
-        .map((item) =>
-          item.productId === productId
-            ? { ...item, quantity: item.quantity + delta }
-            : item
-        )
+      prev.map((item) => item.productId === productId ? { ...item, quantity: item.quantity + delta } : item)
         .filter((item) => item.quantity > 0)
     );
   };
@@ -94,10 +356,7 @@ export default function Billing() {
     setCart((prev) => prev.filter((item) => item.productId !== productId));
   };
 
-  const totalAmount = cart.reduce(
-    (sum, item) => sum + item.unitPrice * item.quantity,
-    0
-  );
+  const totalAmount = cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
   const finalAmount = Math.max(0, totalAmount - discount);
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
@@ -138,9 +397,7 @@ export default function Billing() {
           queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
           queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() });
         },
-        onError: () => {
-          toast({ title: "Bill nahi bana", variant: "destructive" });
-        },
+        onError: () => toast({ title: "Bill nahi bana", variant: "destructive" }),
       }
     );
   };
@@ -202,16 +459,10 @@ export default function Billing() {
                     )}
                   >
                     <CardContent className="p-3 space-y-1.5">
-                      <p className="font-semibold text-sm leading-tight line-clamp-2">
-                        {product.name}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground">
-                        {product.category}
-                      </p>
+                      <p className="font-semibold text-sm leading-tight line-clamp-2">{product.name}</p>
+                      <p className="text-[10px] text-muted-foreground">{product.category}</p>
                       <div className="flex items-center justify-between">
-                        <span className="text-base font-extrabold text-primary">
-                          ₹{product.sellingPrice}
-                        </span>
+                        <span className="text-base font-extrabold text-primary">₹{product.sellingPrice}</span>
                         <span
                           className={cn(
                             "text-[10px] font-medium",
@@ -222,9 +473,7 @@ export default function Billing() {
                                 : "text-positive"
                           )}
                         >
-                          {outOfStock
-                            ? "Khatam"
-                            : `${product.currentStock} left`}
+                          {outOfStock ? "Khatam" : `${product.currentStock} left`}
                         </span>
                       </div>
                       {inCart && (
@@ -252,9 +501,7 @@ export default function Billing() {
           <CardTitle className="flex items-center gap-2 text-base">
             <ShoppingCart className="h-4 w-4 text-primary" />
             Current Bill
-            {billSuccess && (
-              <CheckCircle2 className="h-5 w-5 text-positive ml-auto" />
-            )}
+            {billSuccess && <CheckCircle2 className="h-5 w-5 text-positive ml-auto" />}
           </CardTitle>
         </CardHeader>
 
@@ -274,9 +521,7 @@ export default function Billing() {
                 >
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm truncate">{item.productName}</p>
-                    <p className="text-xs text-muted-foreground">
-                      ₹{item.unitPrice} / pcs
-                    </p>
+                    <p className="text-xs text-muted-foreground">₹{item.unitPrice} / pcs</p>
                   </div>
                   <div className="flex items-center gap-1">
                     <button
@@ -286,9 +531,7 @@ export default function Billing() {
                     >
                       <Minus className="h-3 w-3" />
                     </button>
-                    <span className="w-7 text-center text-sm font-semibold">
-                      {item.quantity}
-                    </span>
+                    <span className="w-7 text-center text-sm font-semibold">{item.quantity}</span>
                     <button
                       className="h-7 w-7 rounded-md border flex items-center justify-center hover:bg-muted transition-colors"
                       onClick={() => updateQty(item.productId, 1)}
@@ -298,9 +541,7 @@ export default function Billing() {
                     </button>
                   </div>
                   <div className="text-right w-14">
-                    <p className="font-bold text-sm">
-                      ₹{(item.unitPrice * item.quantity).toFixed(0)}
-                    </p>
+                    <p className="font-bold text-sm">₹{(item.unitPrice * item.quantity).toFixed(0)}</p>
                   </div>
                   <button
                     onClick={() => removeFromCart(item.productId)}
@@ -330,9 +571,7 @@ export default function Billing() {
               min="0"
               value={discount || ""}
               placeholder="0"
-              onChange={(e) =>
-                setDiscount(Math.max(0, parseFloat(e.target.value) || 0))
-              }
+              onChange={(e) => setDiscount(Math.max(0, parseFloat(e.target.value) || 0))}
               className="h-8 text-right flex-1"
               data-testid="input-discount"
             />
@@ -341,9 +580,7 @@ export default function Billing() {
           {/* Total */}
           <div className="flex justify-between w-full border-t pt-3">
             <span className="font-bold">Total</span>
-            <span className="text-xl font-extrabold text-primary">
-              ₹{finalAmount.toFixed(2)}
-            </span>
+            <span className="text-xl font-extrabold text-primary">₹{finalAmount.toFixed(2)}</span>
           </div>
 
           {/* Payment Mode */}
@@ -364,37 +601,14 @@ export default function Billing() {
             </SelectContent>
           </Select>
 
-          {/* Customer selector — shown for Khata or optional */}
+          {/* Searchable Customer Picker */}
           {(paymentMode === "khata" || cart.length > 0) && (
-            <Select
+            <CustomerPicker
+              customers={customers}
               value={selectedCustomerId}
-              onValueChange={setSelectedCustomerId}
-            >
-              <SelectTrigger
-                className={cn(
-                  "w-full",
-                  paymentMode === "khata" && !selectedCustomerId
-                    ? "border-warning bg-amber-50"
-                    : ""
-                )}
-                data-testid="select-customer"
-              >
-                <SelectValue
-                  placeholder={
-                    paymentMode === "khata"
-                      ? "Customer select karein (zaroori)"
-                      : "Customer (optional)"
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {customers.map((c) => (
-                  <SelectItem key={c.id} value={c.id.toString()}>
-                    {c.name} {c.totalDue > 0 ? `· Due: ₹${c.totalDue.toFixed(0)}` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onChange={setSelectedCustomerId}
+              required={paymentMode === "khata"}
+            />
           )}
 
           {/* Checkout Button */}
