@@ -1,6 +1,0 @@
-{
-  "version": 3,
-  "sources": [],
-  "sections": [
-    {"offset": {"line": 4, "column": 0}, "map": {"version":3,"sources":["file:///home/runner/workspace/store-app/src/app/dashboard/page.tsx"],"sourcesContent":["\"use client\";\nimport Dashboard from \"@/pages/dashboard\";\nexport default Dashboard;\n"],"names":["Dashboard"],"mappings":";;;;;;;;;AAAA;;uCAEeA"}}]
-}
