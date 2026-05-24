@@ -7,7 +7,7 @@ export class ReportsService {
 
   async getSales(from: string, to: string) {
     const rows = await this.db.query(
-      `SELECT DATE(created_at) as date,
+      `SELECT TO_CHAR(DATE(created_at), 'YYYY-MM-DD') as date,
        COALESCE(SUM(total),0) as sales,
        COUNT(*) as bills
        FROM bills
@@ -36,7 +36,7 @@ export class ReportsService {
 
   async getProfit(from: string, to: string) {
     const rows = await this.db.query(
-      `SELECT DATE(b.created_at) as date,
+      `SELECT TO_CHAR(DATE(b.created_at), 'YYYY-MM-DD') as date,
        COALESCE(SUM(b.total),0) as revenue,
        COALESCE(SUM(b.total - COALESCE(bi_cost.cost,0)),0) as profit
        FROM bills b
@@ -44,7 +44,7 @@ export class ReportsService {
          SELECT bill_id, SUM(buying_price * quantity) as cost FROM bill_items GROUP BY bill_id
        ) bi_cost ON bi_cost.bill_id = b.id
        WHERE b.created_at >= $1 AND b.created_at <= $2
-       GROUP BY DATE(b.created_at) ORDER BY date ASC`,
+       GROUP BY DATE(b.created_at) ORDER BY DATE(b.created_at) ASC`,
       [from, to],
     );
 
