@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "D6Zmg3oG2IkwCf3Br3DIC"
+uri = "file://DOCUMENTATION.md"
+type = "text"
+title = "Smart Kirana Store — Project Documentation"
