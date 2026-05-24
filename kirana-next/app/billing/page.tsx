@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   Search, ShoppingCart, Trash2, Plus, Minus, CheckCircle2,
-  UserPlus, X, ChevronDown, User,
+  UserPlus, X, ChevronDown, User, ArrowLeft,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -238,6 +238,7 @@ export default function Billing() {
   const [paymentMode, setPaymentMode] = useState<BillInputPaymentMode>("cash");
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   const [billSuccess, setBillSuccess] = useState(false);
+  const [mobileTab, setMobileTab] = useState<"products" | "cart">("products");
 
   const filteredProducts = useMemo(() => {
     if (!search) return products;
@@ -309,6 +310,7 @@ export default function Billing() {
             setDiscount(0);
             setSelectedCustomerId("");
             setPaymentMode("cash");
+            setMobileTab("products");
           }, 1200);
           queryClient.invalidateQueries({ queryKey: getListBillsQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
@@ -319,169 +321,305 @@ export default function Billing() {
     );
   };
 
-  return (
-    <div className="flex flex-col md:flex-row h-[calc(100dvh-3.5rem-2rem)] md:h-[calc(100dvh-2*1.5rem)] gap-4 md:gap-5">
-      {/* Left: Product Grid */}
-      <div className="flex flex-1 flex-col gap-3 min-h-0">
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Product search karein... (naam, barcode)"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 h-11"
-              autoFocus
-              data-testid="input-product-search"
-            />
-          </div>
-          {cartCount > 0 && (
-            <Badge className="bg-primary text-primary-foreground px-2.5 py-1 text-sm font-bold">{cartCount}</Badge>
+  const CartPanel = (
+    <Card className={cn("flex flex-col h-full transition-all", billSuccess && "border-green-400")}>
+      <CardHeader className="border-b pb-3 pt-4 px-4">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <ShoppingCart className="h-4 w-4 text-primary" />
+          Current Bill
+          {billSuccess && <CheckCircle2 className="h-5 w-5 text-positive ml-auto" />}
+          {cartCount > 0 && !billSuccess && (
+            <Badge className="ml-auto bg-primary text-primary-foreground px-2 py-0.5 text-xs">{cartCount}</Badge>
           )}
+        </CardTitle>
+      </CardHeader>
+
+      <CardContent className="flex-1 overflow-auto p-0">
+        {cart.length === 0 ? (
+          <div className="flex h-full min-h-[120px] flex-col items-center justify-center text-muted-foreground gap-2 py-8">
+            <ShoppingCart className="h-10 w-10 opacity-15" />
+            <p className="text-sm">Products add karein</p>
+          </div>
+        ) : (
+          <div className="divide-y">
+            {cart.map((item) => (
+              <div key={item.productId} className="flex items-center gap-2 px-4 py-3" data-testid={`row-cart-${item.productId}`}>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm truncate">{item.productName}</p>
+                  <p className="text-xs text-muted-foreground">₹{item.unitPrice} / pcs</p>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button className="h-7 w-7 rounded-md border flex items-center justify-center hover:bg-muted transition-colors" onClick={() => updateQty(item.productId, -1)} data-testid={`button-minus-${item.productId}`}>
+                    <Minus className="h-3 w-3" />
+                  </button>
+                  <span className="w-7 text-center text-sm font-semibold">{item.quantity}</span>
+                  <button className="h-7 w-7 rounded-md border flex items-center justify-center hover:bg-muted transition-colors" onClick={() => updateQty(item.productId, 1)} data-testid={`button-plus-${item.productId}`}>
+                    <Plus className="h-3 w-3" />
+                  </button>
+                </div>
+                <div className="text-right w-14">
+                  <p className="font-bold text-sm">₹{(item.unitPrice * item.quantity).toFixed(0)}</p>
+                </div>
+                <button onClick={() => removeFromCart(item.productId)} className="text-muted-foreground hover:text-destructive transition-colors" data-testid={`button-remove-${item.productId}`}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+
+      <CardFooter className="flex-col border-t bg-muted/30 px-4 py-4 gap-3">
+        <div className="flex justify-between w-full text-sm">
+          <span className="text-muted-foreground">Subtotal</span>
+          <span className="font-medium">₹{totalAmount.toFixed(2)}</span>
+        </div>
+        <div className="flex items-center gap-2 w-full">
+          <span className="text-sm text-muted-foreground whitespace-nowrap">Discount (₹)</span>
+          <Input
+            type="number" min="0" value={discount || ""} placeholder="0"
+            onChange={(e) => setDiscount(Math.max(0, parseFloat(e.target.value) || 0))}
+            className="h-8 text-right flex-1" data-testid="input-discount"
+          />
+        </div>
+        <div className="flex justify-between w-full border-t pt-3">
+          <span className="font-bold">Total</span>
+          <span className="text-xl font-extrabold text-primary">₹{finalAmount.toFixed(2)}</span>
+        </div>
+        <Select value={paymentMode} onValueChange={(val) => { setPaymentMode(val as BillInputPaymentMode); if (val !== "khata") setSelectedCustomerId(""); }}>
+          <SelectTrigger className="w-full" data-testid="select-payment-mode">
+            <SelectValue placeholder="Payment tarika" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="cash">Cash Payment</SelectItem>
+            <SelectItem value="upi">UPI Payment</SelectItem>
+            <SelectItem value="khata">Khata (Udhaar)</SelectItem>
+          </SelectContent>
+        </Select>
+        {(paymentMode === "khata" || cart.length > 0) && (
+          <CustomerPicker customers={customers} value={selectedCustomerId} onChange={setSelectedCustomerId} required={paymentMode === "khata"} />
+        )}
+        <Button
+          className="w-full h-12 text-base font-bold"
+          disabled={cart.length === 0 || createBill.isPending || billSuccess}
+          onClick={handleCheckout}
+          data-testid="button-checkout"
+        >
+          {billSuccess ? (
+            <span className="flex items-center gap-2"><CheckCircle2 className="h-5 w-5" /> Bill Hua!</span>
+          ) : createBill.isPending ? "Processing..." : `Bill Karo — ₹${finalAmount.toFixed(0)}`}
+        </Button>
+        {cart.length > 0 && (
+          <button
+            className="text-xs text-muted-foreground hover:text-destructive underline underline-offset-2 transition-colors"
+            onClick={() => { setCart([]); setDiscount(0); setSelectedCustomerId(""); }}
+          >
+            Cart clear karein
+          </button>
+        )}
+      </CardFooter>
+    </Card>
+  );
+
+  return (
+    <>
+      {/* ── Desktop Layout ── */}
+      <div className="hidden md:flex h-[calc(100dvh-2*1.5rem)] gap-5">
+        {/* Left: Product Grid */}
+        <div className="flex flex-1 flex-col gap-3 min-h-0">
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Product search karein... (naam, barcode)"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9 h-11"
+                autoFocus
+                data-testid="input-product-search"
+              />
+            </div>
+            {cartCount > 0 && (
+              <Badge className="bg-primary text-primary-foreground px-2.5 py-1 text-sm font-bold">{cartCount}</Badge>
+            )}
+          </div>
+
+          <div className="flex-1 overflow-auto">
+            {isLoading ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <Card key={i}><CardContent className="p-3"><Skeleton className="h-16 w-full" /></CardContent></Card>
+                ))}
+              </div>
+            ) : filteredProducts.length === 0 ? (
+              <div className="flex h-40 items-center justify-center text-muted-foreground text-sm">Koi product nahi mila</div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 pb-2">
+                {filteredProducts.map((product) => {
+                  const inCart = cart.find((i) => i.productId === product.id);
+                  const outOfStock = product.currentStock <= 0;
+                  return (
+                    <Card
+                      key={product.id}
+                      data-testid={`card-product-${product.id}`}
+                      onClick={() => !outOfStock && addToCart(product)}
+                      className={cn(
+                        "cursor-pointer transition-all duration-150 select-none",
+                        outOfStock ? "opacity-50 cursor-not-allowed" : "hover:border-primary hover:shadow-sm active:scale-[0.97]",
+                        inCart && "border-primary bg-teal-50"
+                      )}
+                    >
+                      <CardContent className="p-3 space-y-1.5">
+                        <p className="font-semibold text-sm leading-tight line-clamp-2">{product.name}</p>
+                        <p className="text-[10px] text-muted-foreground">{product.category}</p>
+                        <div className="flex items-center justify-between">
+                          <span className="text-base font-extrabold text-primary">₹{product.sellingPrice}</span>
+                          <span className={cn(
+                            "text-[10px] font-medium",
+                            outOfStock ? "text-destructive" : product.currentStock <= product.lowStockThreshold ? "text-warning" : "text-positive"
+                          )}>
+                            {outOfStock ? "Khatam" : `${product.currentStock} left`}
+                          </span>
+                        </div>
+                        {inCart && <div className="text-[10px] font-semibold text-primary">Cart: {inCart.quantity} pcs</div>}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
 
-        <div className="flex-1 overflow-auto">
-          {isLoading ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <Card key={i}><CardContent className="p-3"><Skeleton className="h-16 w-full" /></CardContent></Card>
-              ))}
-            </div>
-          ) : filteredProducts.length === 0 ? (
-            <div className="flex h-40 items-center justify-center text-muted-foreground text-sm">Koi product nahi mila</div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 pb-2">
-              {filteredProducts.map((product) => {
-                const inCart = cart.find((i) => i.productId === product.id);
-                const outOfStock = product.currentStock <= 0;
-                return (
-                  <Card
-                    key={product.id}
-                    data-testid={`card-product-${product.id}`}
-                    onClick={() => !outOfStock && addToCart(product)}
-                    className={cn(
-                      "cursor-pointer transition-all duration-150 select-none",
-                      outOfStock ? "opacity-50 cursor-not-allowed" : "hover:border-primary hover:shadow-sm active:scale-[0.97]",
-                      inCart && "border-primary bg-teal-50"
-                    )}
-                  >
-                    <CardContent className="p-3 space-y-1.5">
-                      <p className="font-semibold text-sm leading-tight line-clamp-2">{product.name}</p>
-                      <p className="text-[10px] text-muted-foreground">{product.category}</p>
-                      <div className="flex items-center justify-between">
-                        <span className="text-base font-extrabold text-primary">₹{product.sellingPrice}</span>
-                        <span className={cn(
-                          "text-[10px] font-medium",
-                          outOfStock ? "text-destructive" : product.currentStock <= product.lowStockThreshold ? "text-warning" : "text-positive"
-                        )}>
-                          {outOfStock ? "Khatam" : `${product.currentStock} left`}
-                        </span>
-                      </div>
-                      {inCart && <div className="text-[10px] font-semibold text-primary">Cart: {inCart.quantity} pcs</div>}
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
+        {/* Right: Cart */}
+        <div className="w-80 lg:w-96 shrink-0 flex flex-col">
+          {CartPanel}
         </div>
       </div>
 
-      {/* Right: Bill / Cart */}
-      <Card className={cn("flex flex-col w-full md:w-80 lg:w-96 shrink-0 transition-all", billSuccess && "border-green-400")}>
-        <CardHeader className="border-b pb-3 pt-4 px-4">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <ShoppingCart className="h-4 w-4 text-primary" />
-            Current Bill
-            {billSuccess && <CheckCircle2 className="h-5 w-5 text-positive ml-auto" />}
-          </CardTitle>
-        </CardHeader>
-
-        <CardContent className="flex-1 overflow-auto p-0">
-          {cart.length === 0 ? (
-            <div className="flex h-full min-h-[120px] flex-col items-center justify-center text-muted-foreground gap-2 py-8">
-              <ShoppingCart className="h-10 w-10 opacity-15" />
-              <p className="text-sm">Upar se product add karein</p>
-            </div>
-          ) : (
-            <div className="divide-y">
-              {cart.map((item) => (
-                <div key={item.productId} className="flex items-center gap-2 px-4 py-3" data-testid={`row-cart-${item.productId}`}>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">{item.productName}</p>
-                    <p className="text-xs text-muted-foreground">₹{item.unitPrice} / pcs</p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <button className="h-7 w-7 rounded-md border flex items-center justify-center hover:bg-muted transition-colors" onClick={() => updateQty(item.productId, -1)} data-testid={`button-minus-${item.productId}`}>
-                      <Minus className="h-3 w-3" />
-                    </button>
-                    <span className="w-7 text-center text-sm font-semibold">{item.quantity}</span>
-                    <button className="h-7 w-7 rounded-md border flex items-center justify-center hover:bg-muted transition-colors" onClick={() => updateQty(item.productId, 1)} data-testid={`button-plus-${item.productId}`}>
-                      <Plus className="h-3 w-3" />
-                    </button>
-                  </div>
-                  <div className="text-right w-14">
-                    <p className="font-bold text-sm">₹{(item.unitPrice * item.quantity).toFixed(0)}</p>
-                  </div>
-                  <button onClick={() => removeFromCart(item.productId)} className="text-muted-foreground hover:text-destructive transition-colors" data-testid={`button-remove-${item.productId}`}>
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-
-        <CardFooter className="flex-col border-t bg-muted/30 px-4 py-4 gap-3">
-          <div className="flex justify-between w-full text-sm">
-            <span className="text-muted-foreground">Subtotal</span>
-            <span className="font-medium">₹{totalAmount.toFixed(2)}</span>
-          </div>
-          <div className="flex items-center gap-2 w-full">
-            <span className="text-sm text-muted-foreground whitespace-nowrap">Discount (₹)</span>
-            <Input
-              type="number" min="0" value={discount || ""} placeholder="0"
-              onChange={(e) => setDiscount(Math.max(0, parseFloat(e.target.value) || 0))}
-              className="h-8 text-right flex-1" data-testid="input-discount"
-            />
-          </div>
-          <div className="flex justify-between w-full border-t pt-3">
-            <span className="font-bold">Total</span>
-            <span className="text-xl font-extrabold text-primary">₹{finalAmount.toFixed(2)}</span>
-          </div>
-          <Select value={paymentMode} onValueChange={(val) => { setPaymentMode(val as BillInputPaymentMode); if (val !== "khata") setSelectedCustomerId(""); }}>
-            <SelectTrigger className="w-full" data-testid="select-payment-mode">
-              <SelectValue placeholder="Payment tarika" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="cash">Cash Payment</SelectItem>
-              <SelectItem value="upi">UPI Payment</SelectItem>
-              <SelectItem value="khata">Khata (Udhaar)</SelectItem>
-            </SelectContent>
-          </Select>
-          {(paymentMode === "khata" || cart.length > 0) && (
-            <CustomerPicker customers={customers} value={selectedCustomerId} onChange={setSelectedCustomerId} required={paymentMode === "khata"} />
-          )}
-          <Button
-            className="w-full h-12 text-base font-bold"
-            disabled={cart.length === 0 || createBill.isPending || billSuccess}
-            onClick={handleCheckout}
-            data-testid="button-checkout"
+      {/* ── Mobile Layout ── */}
+      <div className="flex md:hidden flex-col h-[calc(100dvh-3.5rem-4rem)] gap-0">
+        {/* Mobile Tab Switcher */}
+        <div className="flex rounded-xl border bg-muted/40 p-1 gap-1 shrink-0 mb-3">
+          <button
+            onClick={() => setMobileTab("products")}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-2 rounded-lg py-2 text-sm font-semibold transition-all",
+              mobileTab === "products"
+                ? "bg-white shadow-sm text-foreground"
+                : "text-muted-foreground"
+            )}
           >
-            {billSuccess ? (
-              <span className="flex items-center gap-2"><CheckCircle2 className="h-5 w-5" /> Bill Hua!</span>
-            ) : createBill.isPending ? "Processing..." : `Bill Karo — ₹${finalAmount.toFixed(0)}`}
-          </Button>
-          {cart.length > 0 && (
-            <button
-              className="text-xs text-muted-foreground hover:text-destructive underline underline-offset-2 transition-colors"
-              onClick={() => { setCart([]); setDiscount(0); setSelectedCustomerId(""); }}
-            >
-              Cart clear karein
-            </button>
-          )}
-        </CardFooter>
-      </Card>
-    </div>
+            <Search className="h-4 w-4" />
+            Products
+          </button>
+          <button
+            onClick={() => setMobileTab("cart")}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-2 rounded-lg py-2 text-sm font-semibold transition-all",
+              mobileTab === "cart"
+                ? "bg-white shadow-sm text-foreground"
+                : "text-muted-foreground"
+            )}
+            data-testid="button-view-cart"
+          >
+            <ShoppingCart className="h-4 w-4" />
+            Cart
+            {cartCount > 0 && (
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                {cartCount}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {mobileTab === "products" ? (
+          <div className="flex flex-1 flex-col gap-3 min-h-0">
+            <div className="relative shrink-0">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Product dhundein..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9 h-11"
+                data-testid="input-product-search"
+              />
+            </div>
+
+            <div className="flex-1 overflow-auto">
+              {isLoading ? (
+                <div className="grid grid-cols-2 gap-3">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <Card key={i}><CardContent className="p-3"><Skeleton className="h-16 w-full" /></CardContent></Card>
+                  ))}
+                </div>
+              ) : filteredProducts.length === 0 ? (
+                <div className="flex h-40 items-center justify-center text-muted-foreground text-sm">Koi product nahi mila</div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2.5 pb-2">
+                  {filteredProducts.map((product) => {
+                    const inCart = cart.find((i) => i.productId === product.id);
+                    const outOfStock = product.currentStock <= 0;
+                    return (
+                      <Card
+                        key={product.id}
+                        data-testid={`card-product-${product.id}`}
+                        onClick={() => {
+                          if (!outOfStock) {
+                            addToCart(product);
+                          }
+                        }}
+                        className={cn(
+                          "cursor-pointer transition-all duration-150 select-none active:scale-[0.96]",
+                          outOfStock ? "opacity-50 cursor-not-allowed" : "hover:border-primary",
+                          inCart && "border-primary bg-teal-50"
+                        )}
+                      >
+                        <CardContent className="p-3 space-y-1">
+                          <p className="font-semibold text-sm leading-tight line-clamp-2">{product.name}</p>
+                          <p className="text-[10px] text-muted-foreground">{product.category}</p>
+                          <div className="flex items-center justify-between mt-1">
+                            <span className="text-base font-extrabold text-primary">₹{product.sellingPrice}</span>
+                            <span className={cn(
+                              "text-[10px] font-medium",
+                              outOfStock ? "text-destructive" : product.currentStock <= product.lowStockThreshold ? "text-warning" : "text-positive"
+                            )}>
+                              {outOfStock ? "Khatam" : `${product.currentStock}`}
+                            </span>
+                          </div>
+                          {inCart && (
+                            <div className="text-[10px] font-bold text-primary bg-primary/10 rounded px-1.5 py-0.5 text-center">
+                              ✓ {inCart.quantity} in cart
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {cartCount > 0 && (
+              <button
+                onClick={() => setMobileTab("cart")}
+                className="shrink-0 flex items-center justify-between w-full rounded-xl bg-primary px-4 py-3 text-primary-foreground shadow-lg active:scale-[0.98] transition-transform"
+                data-testid="button-view-cart-sticky"
+              >
+                <div className="flex items-center gap-2">
+                  <ShoppingCart className="h-5 w-5" />
+                  <span className="font-bold text-sm">{cartCount} items in cart</span>
+                </div>
+                <span className="font-extrabold text-base">₹{finalAmount.toFixed(0)} →</span>
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="flex-1 min-h-0 flex flex-col">
+            {CartPanel}
+          </div>
+        )}
+      </div>
+    </>
   );
 }

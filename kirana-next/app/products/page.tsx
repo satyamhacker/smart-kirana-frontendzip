@@ -25,6 +25,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { Card, CardContent } from "@/components/ui/card";
 
 const productSchema = z.object({
   name: z.string().min(1, "Name required"),
@@ -144,6 +145,14 @@ function ProductForm({
   );
 }
 
+function StockBadge({ product }: { product: Product }) {
+  if (product.currentStock === 0)
+    return <Badge className="bg-red-100 text-red-700 border border-red-200 font-normal">Out of Stock</Badge>;
+  if (product.currentStock <= product.lowStockThreshold)
+    return <Badge className="bg-amber-100 text-amber-700 border border-amber-200 font-normal">Low Stock</Badge>;
+  return <Badge className="bg-green-100 text-green-700 border border-green-200 font-normal">In Stock</Badge>;
+}
+
 export default function Products() {
   const [search, setSearch] = useState("");
   const { data: products = [], isLoading } = useListProducts({ search: search || undefined });
@@ -198,18 +207,14 @@ export default function Products() {
     );
   };
 
-  const getStockBadge = (product: Product) => {
-    if (product.currentStock === 0) {
-      return <Badge className="bg-red-100 text-red-700 border border-red-200 font-normal">Out of Stock</Badge>;
-    }
-    if (product.currentStock <= product.lowStockThreshold) {
-      return <Badge className="bg-amber-100 text-amber-700 border border-amber-200 font-normal">Low Stock</Badge>;
-    }
-    return <Badge className="bg-green-100 text-green-700 border border-green-200 font-normal">In Stock</Badge>;
-  };
+  const margin = (p: Product) =>
+    p.sellingPrice > 0
+      ? (((p.sellingPrice - p.purchasePrice) / p.sellingPrice) * 100).toFixed(0)
+      : "0";
 
   return (
     <div className="space-y-5" data-testid="page-products">
+      {/* Header */}
       <div className="flex flex-wrap justify-between items-center gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">
@@ -217,17 +222,24 @@ export default function Products() {
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">{products.length} products · Inventory manage karein</p>
         </div>
-        <div className="flex gap-2">
-          <div className="relative">
+        <div className="flex gap-2 w-full sm:w-auto">
+          <div className="relative flex-1 sm:flex-none">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Product dhundein..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 w-52" data-testid="input-search-products" />
+            <Input
+              placeholder="Product dhundein..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 w-full sm:w-52"
+              data-testid="input-search-products"
+            />
           </div>
-          <Button onClick={() => setIsAddOpen(true)} data-testid="button-add-product">
-            <Plus className="mr-1.5 h-4 w-4" /> Add Product
+          <Button onClick={() => setIsAddOpen(true)} data-testid="button-add-product" className="shrink-0">
+            <Plus className="mr-1.5 h-4 w-4" /> Add
           </Button>
         </div>
       </div>
 
+      {/* Dialogs */}
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Naya Product Add Karein</DialogTitle></DialogHeader>
@@ -258,7 +270,79 @@ export default function Products() {
         </DialogContent>
       </Dialog>
 
-      <div className="rounded-xl border bg-card overflow-hidden">
+      {/* Mobile: Card List */}
+      <div className="md:hidden space-y-2">
+        {isLoading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i}><CardContent className="p-4"><Skeleton className="h-16 w-full" /></CardContent></Card>
+          ))
+        ) : products.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground rounded-xl border bg-card">
+            <Package className="h-10 w-10 mb-3 opacity-20" />
+            <p className="text-sm">Koi product nahi. Upar se add karein.</p>
+          </div>
+        ) : (
+          products.map((product) => (
+            <Card
+              key={product.id}
+              data-testid={`row-product-${product.id}`}
+              className={cn(
+                "overflow-hidden",
+                product.currentStock === 0 && "border-red-200 bg-red-50/30",
+                product.currentStock > 0 && product.currentStock <= product.lowStockThreshold && "border-amber-200 bg-amber-50/30"
+              )}
+            >
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-semibold text-sm">{product.name}</p>
+                      <StockBadge product={product} />
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {product.category}{product.barcode && ` · ${product.barcode}`}
+                    </p>
+                  </div>
+                  <div className="flex gap-1 shrink-0">
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditingProduct(product)} data-testid={`button-edit-${product.id}`}>
+                      <Edit className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-red-50" onClick={() => handleDelete(product.id, product.name)} data-testid={`button-delete-${product.id}`}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4 mt-3 text-sm">
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Stock</p>
+                    <p className={cn(
+                      "font-bold",
+                      product.currentStock === 0 ? "text-destructive" : product.currentStock <= product.lowStockThreshold ? "text-warning" : "text-foreground"
+                    )}>
+                      {product.currentStock} <span className="text-xs font-normal text-muted-foreground">{product.unit}</span>
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Buying</p>
+                    <p className="font-medium text-muted-foreground">₹{product.purchasePrice}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Selling</p>
+                    <p className="font-bold text-primary">₹{product.sellingPrice}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Margin</p>
+                    <p className="font-medium text-positive">{margin(product)}%</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        )}
+      </div>
+
+      {/* Desktop: Table */}
+      <div className="hidden md:block rounded-xl border bg-card overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50 hover:bg-muted/50">
@@ -288,51 +372,46 @@ export default function Products() {
                 </TableCell>
               </TableRow>
             ) : (
-              products.map((product) => {
-                const margin = product.sellingPrice > 0
-                  ? (((product.sellingPrice - product.purchasePrice) / product.sellingPrice) * 100).toFixed(0)
-                  : "0";
-                return (
-                  <TableRow
-                    key={product.id}
-                    data-testid={`row-product-${product.id}`}
-                    className={cn(
-                      product.currentStock === 0 && "bg-red-50/50",
-                      product.currentStock > 0 && product.currentStock <= product.lowStockThreshold && "bg-amber-50/50"
-                    )}
-                  >
-                    <TableCell>
-                      <div className="font-semibold text-sm">{product.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {product.category}{product.barcode && ` · ${product.barcode}`}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className={cn(
-                        "font-bold",
-                        product.currentStock === 0 ? "text-destructive" : product.currentStock <= product.lowStockThreshold ? "text-warning" : "text-foreground"
-                      )}>
-                        {product.currentStock}
-                      </span>{" "}
-                      <span className="text-xs text-muted-foreground">{product.unit}</span>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">₹{product.purchasePrice}</TableCell>
-                    <TableCell className="font-semibold text-primary">₹{product.sellingPrice}</TableCell>
-                    <TableCell><span className="text-xs font-medium text-positive">{margin}%</span></TableCell>
-                    <TableCell>{getStockBadge(product)}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditingProduct(product)} data-testid={`button-edit-${product.id}`}>
-                          <Edit className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-red-50" onClick={() => handleDelete(product.id, product.name)} data-testid={`button-delete-${product.id}`}>
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
+              products.map((product) => (
+                <TableRow
+                  key={product.id}
+                  data-testid={`row-product-${product.id}`}
+                  className={cn(
+                    product.currentStock === 0 && "bg-red-50/50",
+                    product.currentStock > 0 && product.currentStock <= product.lowStockThreshold && "bg-amber-50/50"
+                  )}
+                >
+                  <TableCell>
+                    <div className="font-semibold text-sm">{product.name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {product.category}{product.barcode && ` · ${product.barcode}`}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className={cn(
+                      "font-bold",
+                      product.currentStock === 0 ? "text-destructive" : product.currentStock <= product.lowStockThreshold ? "text-warning" : "text-foreground"
+                    )}>
+                      {product.currentStock}
+                    </span>{" "}
+                    <span className="text-xs text-muted-foreground">{product.unit}</span>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">₹{product.purchasePrice}</TableCell>
+                  <TableCell className="font-semibold text-primary">₹{product.sellingPrice}</TableCell>
+                  <TableCell><span className="text-xs font-medium text-positive">{margin(product)}%</span></TableCell>
+                  <TableCell><StockBadge product={product} /></TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditingProduct(product)} data-testid={`button-edit-${product.id}`}>
+                        <Edit className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-red-50" onClick={() => handleDelete(product.id, product.name)} data-testid={`button-delete-${product.id}`}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
             )}
           </TableBody>
         </Table>
