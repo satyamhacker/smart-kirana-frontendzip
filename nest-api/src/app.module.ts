@@ -1,4 +1,6 @@
 import { Module, OnModuleInit } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import configuration from './config/configuration';
 import { DbModule } from './db/db.module';
 import { DbService } from './db/db.service';
 import { DashboardModule } from './dashboard/dashboard.module';
@@ -10,6 +12,11 @@ import { SettingsModule } from './settings/settings.module';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      load: [configuration],
+      envFilePath: ['.env', '.env.local'],
+    }),
     DbModule,
     DashboardModule,
     ProductsModule,

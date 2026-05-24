@@ -9,7 +9,7 @@ import {
   getListProductsQueryKey,
   getGetDashboardSummaryQueryKey,
   type Product,
-} from "@/lib/api-client";
+} from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";

@@ -1,6 +1,6 @@
 "use client";
 
-import { useGetDashboardSummary } from "@/lib/api-client";
+import { useGetDashboardSummary } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { IndianRupee, TrendingUp, BookOpen, AlertTriangle, PackageOpen, ShoppingBag } from "lucide-react";

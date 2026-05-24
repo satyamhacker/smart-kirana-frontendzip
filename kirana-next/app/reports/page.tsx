@@ -9,7 +9,7 @@ import {
   useGetLowStockReport,
   getGetSalesReportQueryKey,
   getGetProfitReportQueryKey,
-} from "@/lib/api-client";
+} from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from "recharts";
 import { IndianRupee, TrendingUp, BookOpen, AlertTriangle, CalendarIcon, X, Clock } from "lucide-react";

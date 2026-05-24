@@ -9,7 +9,7 @@ import {
   useAddKhataTransaction,
   getListCustomersQueryKey,
   getGetCustomerQueryKey,
-} from "@/lib/api-client";
+} from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

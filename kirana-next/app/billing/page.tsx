@@ -12,7 +12,7 @@ import {
   getListCustomersQueryKey,
   type BillInputPaymentMode,
   type Customer,
-} from "@/lib/api-client";
+} from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
