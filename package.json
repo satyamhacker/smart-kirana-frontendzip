@@ -5,6 +5,5 @@
   "workspaces": [
     "store-app",
     "api-client-react"
-  ],
-  "packageManager": "pnpm@9.0.0"
+  ]
 }
