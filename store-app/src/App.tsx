@@ -9,7 +9,6 @@ import Dashboard from "@/pages/dashboard";
 import Billing from "@/pages/billing";
 import Products from "@/pages/products";
 import Customers from "@/pages/customers";
-import Purchases from "@/pages/purchases";
 import Reports from "@/pages/reports";
 import Settings from "@/pages/settings";
 
@@ -26,7 +25,6 @@ function Router() {
         <Route path="/billing" component={Billing} />
         <Route path="/products" component={Products} />
         <Route path="/customers" component={Customers} />
-        <Route path="/purchases" component={Purchases} />
         <Route path="/reports" component={Reports} />
         <Route path="/settings" component={Settings} />
         <Route component={NotFound} />

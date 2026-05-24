@@ -4,7 +4,6 @@ import {
   ShoppingCart,
   Package,
   BookOpen,
-  Truck,
   BarChart3,
   Settings,
   Store,
@@ -38,12 +37,6 @@ const navigation = [
     hindiName: "खाता",
     href: "/customers",
     icon: BookOpen,
-  },
-  {
-    name: "Purchase",
-    hindiName: "खरीद",
-    href: "/purchases",
-    icon: Truck,
   },
   {
     name: "Reports",

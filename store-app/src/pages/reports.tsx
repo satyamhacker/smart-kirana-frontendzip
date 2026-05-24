@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { DateRange } from "react-day-picker";
 import {
   useGetSalesReport,
   useGetProfitReport,
@@ -19,27 +20,48 @@ import {
   AreaChart,
   Area,
 } from "recharts";
-import { IndianRupee, TrendingUp, BookOpen, AlertTriangle } from "lucide-react";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { IndianRupee, TrendingUp, BookOpen, AlertTriangle, CalendarIcon, X, Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { format, isSameDay, subDays } from "date-fns";
 
-type Period = "7d" | "30d" | "90d";
+function todayStr() {
+  return new Date().toISOString().split("T")[0];
+}
 
-function getRange(period: Period) {
-  const to = new Date().toISOString().split("T")[0];
-  const days = period === "7d" ? 7 : period === "30d" ? 30 : 90;
-  const from = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .split("T")[0];
-  return { from, to };
+function dateToStr(d: Date) {
+  return d.toISOString().split("T")[0];
+}
+
+function buildDatetimeStr(dateStr: string, timeStr: string) {
+  return `${dateStr}T${timeStr}:00`;
 }
 
 export default function Reports() {
-  const [period, setPeriod] = useState<Period>("30d");
-  const { from, to } = getRange(period);
+  const today = new Date();
+
+  const [dateRange, setDateRange] = useState<DateRange>({
+    from: subDays(today, 29),
+    to: today,
+  });
+  const [calOpen, setCalOpen] = useState(false);
+
+  const isSingleDay =
+    dateRange.from != null &&
+    (dateRange.to == null || isSameDay(dateRange.from, dateRange.to));
+
+  const [fromTime, setFromTime] = useState("00:00");
+  const [toTime, setToTime] = useState("23:59");
+
+  const fromDate = dateRange.from ? dateToStr(dateRange.from) : dateToStr(subDays(today, 29));
+  const toDate = dateRange.to ? dateToStr(dateRange.to) : dateRange.from ? dateToStr(dateRange.from) : todayStr();
+
+  const from = isSingleDay ? buildDatetimeStr(fromDate, fromTime) : fromDate;
+  const to = isSingleDay ? buildDatetimeStr(toDate, toTime) : toDate;
 
   const { data: salesReport, isLoading: loadSales } = useGetSalesReport(
     { period: "daily", from, to },
@@ -52,16 +74,37 @@ export default function Reports() {
   const { data: khataReport, isLoading: loadKhata } = useGetPendingKhataReport();
   const { data: stockReport, isLoading: loadStock } = useGetLowStockReport();
 
-  const periodButtons: { label: string; value: Period }[] = [
-    { label: "7 दिन", value: "7d" },
-    { label: "30 दिन", value: "30d" },
-    { label: "90 दिन", value: "90d" },
-  ];
+  function handleRangeSelect(range: DateRange | undefined) {
+    if (!range) {
+      setDateRange({ from: undefined, to: undefined });
+      return;
+    }
+    setDateRange(range);
+    if (range.from && range.to && !isSameDay(range.from, range.to)) {
+      setCalOpen(false);
+    }
+  }
+
+  function clearFilter() {
+    setDateRange({ from: subDays(today, 29), to: today });
+    setFromTime("00:00");
+    setToTime("23:59");
+  }
+
+  function rangeLabelText() {
+    if (!dateRange.from) return "Select date range";
+    if (isSingleDay) {
+      return format(dateRange.from, "dd MMM yyyy");
+    }
+    const f = format(dateRange.from, "dd MMM");
+    const t = dateRange.to ? format(dateRange.to, "dd MMM yyyy") : "...";
+    return `${f} – ${t}`;
+  }
 
   return (
     <div className="space-y-6" data-testid="page-reports">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">
             Reports
@@ -73,23 +116,118 @@ export default function Reports() {
             Apni dukaan ka performance dekhein
           </p>
         </div>
-        {/* Period Selector */}
-        <div className="flex gap-1 rounded-lg border bg-muted/40 p-1">
-          {periodButtons.map((b) => (
-            <button
-              key={b.value}
-              onClick={() => setPeriod(b.value)}
-              className={cn(
-                "px-3 py-1.5 rounded-md text-sm font-medium transition-all",
-                period === b.value
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-              data-testid={`button-period-${b.value}`}
-            >
-              {b.label}
-            </button>
-          ))}
+
+        {/* Date Filter */}
+        <div className="flex flex-col gap-2 items-end">
+          <div className="flex items-center gap-2">
+            <Popover open={calOpen} onOpenChange={setCalOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "h-9 gap-2 text-sm font-medium min-w-[200px] justify-start",
+                    !dateRange.from && "text-muted-foreground"
+                  )}
+                  data-testid="button-date-filter"
+                >
+                  <CalendarIcon className="h-4 w-4 shrink-0 text-primary" />
+                  <span className="flex-1 text-left">{rangeLabelText()}</span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent
+                className="w-auto p-0 shadow-lg"
+                align="end"
+                sideOffset={6}
+              >
+                <div className="p-3 border-b">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                    Date Range Select Karein
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Ek date click karein ya range ke liye drag karein
+                  </p>
+                </div>
+                <Calendar
+                  mode="range"
+                  selected={dateRange}
+                  onSelect={handleRangeSelect}
+                  disabled={{ after: today }}
+                  numberOfMonths={1}
+                  defaultMonth={dateRange.from ?? today}
+                />
+                <div className="border-t p-3 flex justify-between items-center gap-2">
+                  <div className="flex gap-1 flex-wrap">
+                    {[
+                      { label: "Aaj", days: 0 },
+                      { label: "7 दिन", days: 6 },
+                      { label: "30 दिन", days: 29 },
+                      { label: "90 दिन", days: 89 },
+                    ].map((q) => (
+                      <button
+                        key={q.label}
+                        onClick={() => {
+                          const from = subDays(today, q.days);
+                          setDateRange({ from, to: today });
+                          setFromTime("00:00");
+                          setToTime("23:59");
+                          if (q.days === 0) {
+                          } else {
+                            setCalOpen(false);
+                          }
+                        }}
+                        className="rounded-md border px-2.5 py-1 text-xs font-medium hover:bg-muted transition-colors"
+                      >
+                        {q.label}
+                      </button>
+                    ))}
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-xs h-7"
+                    onClick={() => setCalOpen(false)}
+                  >
+                    Done
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
+
+            {dateRange.from && (
+              <button
+                onClick={clearFilter}
+                className="h-9 w-9 flex items-center justify-center rounded-md border hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                title="Filter clear karein"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Time filter — only shown for single day */}
+          {isSingleDay && (
+            <div className="flex items-center gap-2 rounded-lg border bg-amber-50 border-amber-200 px-3 py-2">
+              <Clock className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+              <span className="text-xs font-medium text-amber-800">Time filter:</span>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="time"
+                  value={fromTime}
+                  onChange={(e) => setFromTime(e.target.value)}
+                  className="rounded border border-amber-300 bg-white px-1.5 py-0.5 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-amber-400"
+                  data-testid="input-from-time"
+                />
+                <span className="text-xs text-amber-600 font-medium">to</span>
+                <input
+                  type="time"
+                  value={toTime}
+                  onChange={(e) => setToTime(e.target.value)}
+                  className="rounded border border-amber-300 bg-white px-1.5 py-0.5 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-amber-400"
+                  data-testid="input-to-time"
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -182,11 +320,7 @@ export default function Reports() {
             ) : salesReport?.data && salesReport.data.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={salesReport.data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    vertical={false}
-                    stroke="hsl(var(--border))"
-                  />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
                   <XAxis
                     dataKey="date"
                     axisLine={false}
@@ -210,11 +344,7 @@ export default function Reports() {
                     }}
                     formatter={(v: number) => [`₹${v.toFixed(0)}`, "Sales"]}
                   />
-                  <Bar
-                    dataKey="sales"
-                    fill="hsl(var(--primary))"
-                    radius={[4, 4, 0, 0]}
-                  />
+                  <Bar dataKey="sales" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -242,29 +372,14 @@ export default function Reports() {
               </div>
             ) : profitReport?.data && profitReport.data.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart
-                  data={profitReport.data}
-                  margin={{ top: 4, right: 4, left: -20, bottom: 0 }}
-                >
+                <AreaChart data={profitReport.data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="profitGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop
-                        offset="5%"
-                        stopColor="hsl(142 60% 32%)"
-                        stopOpacity={0.3}
-                      />
-                      <stop
-                        offset="95%"
-                        stopColor="hsl(142 60% 32%)"
-                        stopOpacity={0}
-                      />
+                      <stop offset="5%" stopColor="hsl(142 60% 32%)" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="hsl(142 60% 32%)" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    vertical={false}
-                    stroke="hsl(var(--border))"
-                  />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
                   <XAxis
                     dataKey="date"
                     axisLine={false}
@@ -382,9 +497,7 @@ export default function Reports() {
                             : "bg-amber-100 text-amber-700 border-amber-200"
                         )}
                       >
-                        {p.currentStock === 0
-                          ? "Out of Stock"
-                          : `${p.currentStock} left`}
+                        {p.currentStock === 0 ? "Out of Stock" : `${p.currentStock} left`}
                       </Badge>
                     </div>
                   </div>
